@@ -7,9 +7,11 @@
 		"token": "1",
 		"register": "1fz710",
 		"recharger": "x4vmcl",
-		"firstRecharger": "y7et9b"
+		"firstRecharger": "y7et9b",
+		"ajta": "https://web02c-024.cg6.co"
 	},
 	"afy": {
-		"appId": "1"
+		"appId": "1",
+		"afta": "https://web02c-024.cg6.co"
 	}
 }
