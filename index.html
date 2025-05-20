@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>打地鼠游戏</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 20px;
+        }
+        #gameArea {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            grid-template-rows: repeat(3, 100px);
+            gap: 10px;
+            margin: 0 auto;
+        }
+        .mole {
+            width: 100px;
+            height: 100px;
+            background-color: #8B4513;
+            border-radius: 50%;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            visibility: hidden;
+        }
+        .mole.active {
+            visibility: visible;
+        }
+        #score {
+            font-size: 24px;
+            margin: 20px 0;
+        }
+        #startButton {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<h1>打地鼠游戏</h1>
+<div id="score">得分: 0</div>
+<div id="gameArea"></div>
+<button id="startButton">开始游戏</button>
+
+<script>
+    const gameArea = document.getElementById('gameArea');
+    const scoreDisplay = document.getElementById('score');
+    const startButton = document.getElementById('startButton');
+    let score = 0;
+    let gameInterval;
+    let moleInterval;
+    let moleCount = 0;
+
+    // 创建地鼠
+    function createMoles() {
+        for (let i = 0; i < 9; i++) {
+            const mole = document.createElement('div');
+            mole.classList.add('mole');
+            mole.addEventListener('click', () => hitMole(mole));
+            gameArea.appendChild(mole);
+        }
+    }
+
+    // 开始游戏
+    function startGame() {
+        score = 0;
+        moleCount = 0;
+        scoreDisplay.innerText = `得分: ${score}`;
+        startButton.disabled = true;
+
+        clearInterval(gameInterval);
+        clearInterval(moleInterval);
+
+        gameInterval = setInterval(() => {
+            if (moleCount < 10) {
+                showMole();
+            } else {
+                clearInterval(moleInterval);
+                endGame();
+            }
+        }, 1000);
+
+        moleInterval = setInterval(() => {
+            moleCount++;
+        }, 1000);
+    }
+
+    // 显示地鼠
+    function showMole() {
+        const moles = document.querySelectorAll('.mole');
+        const randomIndex = Math.floor(Math.random() * moles.length);
+        const mole = moles[randomIndex];
+        mole.classList.add('active');
+
+        setTimeout(() => {
+            mole.classList.remove('active');
+        }, 800);
+    }
+
+    // 打地鼠
+    function hitMole(mole) {
+        if (mole.classList.contains('active')) {
+            score++;
+            scoreDisplay.innerText = `得分: ${score}`;
+            mole.classList.remove('active');
+        }
+    }
+
+    // 结束游戏
+    function endGame() {
+        clearInterval(gameInterval);
+        clearInterval(moleInterval);
+        alert(`游戏结束！你的得分是 ${score}`);
+        startButton.disabled = false;
+    }
+    createMoles();
+    startButton.addEventListener('click', startGame);
+</script>
+<script src="cordova.js"></script>
+<script src="js/index.js"></script>
+</body>
+</html>
