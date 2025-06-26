@@ -1,0 +1,15 @@
+梳理
+
+1、googleAdId 获取；
+
+2、获取自然量和非自然量.af ,adjust  installReferrer;
+
+3、数据组装 WgPackage=com.ad.fwe&fixed.gaid=swerewrwer42er54&fixed.deviceModel=ewr; 保存；
+
+4、接口请求，拿到数据（链接，key，状态码）；
+
+5、初始化af或者adjust 
+
+6、获取adjust_adid 或者appsflyer_appId ，appsflyer_Id  ，并把链接和参数组装一起；
+
+7、跳转Intent 本地谷歌浏览器打开链接
